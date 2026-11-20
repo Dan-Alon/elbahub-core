@@ -1,8 +1,22 @@
 @import "tailwindcss";
 
+/* 
+  PALETA KLAN ENTERTAINMENT 
+  Basada en klanE.JPG
+  Color Principal (Accent): Magenta #E6007E (Aproximación de la letra 'e')
+  Color Secundario: Azul vibrante #00AEEF
+  Color Terciario: Naranja enérgico #F37021
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fdfdfd; /* Blanco casi puro para que destaquen los colores */
+  --foreground: #111827; /* Gris muy oscuro para texto (slate-900) */
+  
+  /* Colores de marca */
+  --klan-magenta: #e6007e;
+  --klan-magenta-light: #ffebf5; /* Para fondos sutiles de selección */
+  --klan-blue: #00aeef;
+  --klan-orange:#e6007e;
 }
 
 @theme inline {
@@ -10,12 +24,20 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Añadimos los colores personalizados a Tailwind v4 */
+  --color-klan-magenta: var(--klan-magenta);
+  --color-klan-magenta-light: var(--klan-magenta-light);
+  --color-klan-blue: var(--klan-blue);
+  --color-klan-orange: var(--klan-orange);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Mantenemos modo oscuro elegante, pero los acentos seguirán siendo Magenta */
+    --background: #0f1115; /* Gris muy oscuro con un ligero toque azul */
+    --foreground: #f8fafc;
+    --klan-magenta-light: #4a0029; /* Versión oscura del fondo sutil */
   }
 }
 
