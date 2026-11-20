@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { auth } from './dashboard/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './dashboard/lib/firebase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,11 +14,20 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // Si ya hay una sesión activa, redirige directo al dashboard
+  const redirectByRole = async (uid: string) => {
+    try {
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      const role = userSnap.exists() ? userSnap.data().role : 'staff';
+      router.push(role === 'admin' ? '/dashboard' : '/app');
+    } catch {
+      router.push('/app');
+    }
+  };
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        router.push('/dashboard');
+        await redirectByRole(user.uid);
       } else {
         setCheckingSession(false);
       }
@@ -31,8 +41,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      router.push('/dashboard');
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await redirectByRole(cred.user.uid);
     } catch (err: any) {
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
         setError('Credenciales incorrectas. Verifica tu correo y contraseña.');
@@ -54,9 +64,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 font-sans selection:bg-[#0052cc] selection:text-white">
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 font-sans">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
-        {/* Cabecera Corporativa */}
         <div className="p-8 pb-6 border-b border-slate-800 text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0052cc] to-[#3b82f6] text-white font-black text-2xl shadow-lg mb-4">
             E
@@ -69,7 +78,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Formulario */}
         <form onSubmit={handleLogin} className="p-8 space-y-5">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold px-4 py-3 rounded-xl">
@@ -86,8 +94,8 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@elbahotels.com"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6] transition-colors"
+              placeholder="nombre@elbahotels.com"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]"
             />
           </div>
 
@@ -101,7 +109,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6] transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#3b82f6]"
             />
           </div>
 
@@ -114,7 +122,6 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-
       <p className="text-slate-600 text-xs mt-8 font-medium">
         entertAIner Hub &bull; Acceso restringido a personal autorizado
       </p>

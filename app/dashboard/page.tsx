@@ -1,6 +1,8 @@
 'use client';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
-import { db } from './lib/firebase';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { db, auth } from './lib/firebase';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -118,6 +120,9 @@ const generateTimeOptions = () => {
 };
 
 export default function Dashboard() {
+  const router = useRouter();
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('agenda'); // Por defecto en Creador de Programa
   const [logoError, setLogoError] = useState(false);
 
@@ -148,6 +153,25 @@ export default function Dashboard() {
   const [newActTitle, setNewActTitle] = useState('');
   const [newActZone, setNewActZone] = useState(zones[0]);
   const [newActStaff, setNewActStaff] = useState<string[]>([]);
+
+  // --- PROTECCIÓN DE RUTA Y ROL (FIREBASE AUTH + RBAC) ---
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        router.push('/');
+        return;
+      }
+      const userSnap = await getDoc(doc(db, 'users', user.uid));
+      const role = userSnap.exists() ? userSnap.data().role : 'staff';
+      if (role !== 'admin') {
+        router.push('/app');
+        return;
+      }
+      setUserEmail(user.email);
+      setAuthLoading(false);
+    });
+    return () => unsubAuth();
+  }, [router]);
 
   // --- Sincronización en tiempo real con Firestore ---
   useEffect(() => {
@@ -374,6 +398,14 @@ export default function Dashboard() {
   const unavailableCount = staffData.length - availableCount;
   const busyCount = busyStaffDetails.length;
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#0052cc] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-20">
       
@@ -430,14 +462,15 @@ export default function Dashboard() {
                 className="text-xs sm:text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0052cc] cursor-pointer transition-colors"
                 title="Seleccionar inicio de semana (Lunes)"
               />
-              <div className="hidden md:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+              <div className="hidden md:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200" title={userEmail || ''}>
                 <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></div>
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Admin (Jefe)</span>
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (confirm('¿Seguro que quieres cerrar sesión?')) {
-                    window.location.href = '/';
+                    await signOut(auth);
+                    router.push('/');
                   }
                 }}
                 className="text-slate-400 hover:text-red-600 transition-colors p-2 rounded-lg hover:bg-red-50"
