@@ -13,13 +13,29 @@ const timeToMinutes = (timeStr: string) => {
   return (h || 0) * 60 + (m || 0);
 };
 
+// Devuelve siempre el lunes (YYYY-MM-DD) de cualquier fecha dada
+const getMondayOfWeek = (dateInput: Date | string) => {
+  const d = typeof dateInput === 'string' ? new Date(dateInput + 'T00:00:00') : new Date(dateInput);
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const dd = String(monday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+};
+
 const calculateAccruedVacations = (hireDateStr: string) => {
   if (!hireDateStr) return 0;
-  const hireDate = new Date(hireDateStr);
+  const hireDate = new Date(hireDateStr + 'T00:00:00');
+  if (isNaN(hireDate.getTime())) return 0;
   const today = new Date();
-  let months = (today.getFullYear() - hireDate.getFullYear()) * 12 - hireDate.getMonth() + today.getMonth();
-  if (today.getDate() < hireDate.getDate()) months--;
-  return months <= 0 ? 0 : Math.min(12, months) * 4;
+  today.setHours(0, 0, 0, 0);
+  const diffMs = today.getTime() - hireDate.getTime();
+  if (diffMs <= 0) return 0;
+  const daysWorked = diffMs / (1000 * 60 * 60 * 24);
+  return Math.min(48, Number(((daysWorked / 365) * 48).toFixed(1)));
 };
 
 export default function StaffPwaPage() {
@@ -28,9 +44,12 @@ export default function StaffPwaPage() {
   const [staffInitials, setStaffInitials] = useState<string>('');
   const [staffProfile, setStaffProfile] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
-  const [weekStartDate] = useState('2026-04-13');
+  const [weekStartDate, setWeekStartDate] = useState(() => getMondayOfWeek(new Date()));
   const [pwaTab, setPwaTab] = useState<'agenda' | 'cuadrante' | 'saldos'>('agenda');
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const d = new Date().getDay();
+    return d === 0 ? 6 : d - 1; // Selecciona automáticamente el día de hoy (0=Lunes ... 6=Domingo)
+  });
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -65,8 +84,14 @@ export default function StaffPwaPage() {
     };
   }, [staffInitials]);
 
+  const shiftWeek = (daysOffset: number) => {
+    const current = new Date(weekStartDate + 'T00:00:00');
+    current.setDate(current.getDate() + daysOffset);
+    setWeekStartDate(getMondayOfWeek(current));
+  };
+
   const weekDays = useMemo(() => {
-    const start = new Date(weekStartDate);
+    const start = new Date(weekStartDate + 'T00:00:00');
     const names = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
     const shorts = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     return Array.from({ length: 7 }).map((_, i) => {
@@ -110,6 +135,37 @@ export default function StaffPwaPage() {
       </header>
 
       <main className="flex-1 w-full min-w-0 p-4 space-y-4">
+        {/* SELECTOR DE HISTORIAL (SEMANA / MES / AÑO) */}
+        {(pwaTab === 'agenda' || pwaTab === 'cuadrante') && (
+          <div className="w-full bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm flex items-center justify-between gap-2">
+            <button
+              onClick={() => shiftWeek(-7)}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-black text-xs border border-slate-200"
+              title="Semana anterior"
+            >
+              ◀
+            </button>
+            <div className="flex-1 flex flex-col items-center">
+              <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Semana del</span>
+              <input
+                type="date"
+                value={weekStartDate}
+                onChange={(e) => {
+                  if (e.target.value) setWeekStartDate(getMondayOfWeek(e.target.value));
+                }}
+                className="text-xs font-black text-[#0052cc] bg-transparent text-center outline-none cursor-pointer"
+              />
+            </div>
+            <button
+              onClick={() => shiftWeek(7)}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-black text-xs border border-slate-200"
+              title="Semana siguiente"
+            >
+              ▶
+            </button>
+          </div>
+        )}
+
         {pwaTab === 'agenda' && (
           <div className="w-full min-w-0">
             <div className="flex gap-2 overflow-x-auto pb-4 -mx-4 px-4 no-scrollbar">
@@ -126,7 +182,7 @@ export default function StaffPwaPage() {
 
             {myAgenda.length === 0 ? (
               <div className="w-full text-center text-slate-400 font-medium mt-6 p-6 bg-white rounded-2xl border border-slate-100">
-                Sin actividades asignadas para hoy.
+                Sin actividades asignadas para este día.
               </div>
             ) : (
               <div className="w-full space-y-3">
@@ -168,7 +224,7 @@ export default function StaffPwaPage() {
             <div className="w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-xs text-slate-400 font-bold uppercase mb-1">Vacaciones Disponibles</div>
               <div className="text-3xl font-black text-[#0052cc]">
-                {calculateAccruedVacations(staffProfile.hireDate) - (staffProfile.vacationsTaken || 0)}{' '}
+                {Number((calculateAccruedVacations(staffProfile.hireDate) - (staffProfile.vacationsTaken || 0)).toFixed(1))}{' '}
                 <span className="text-sm font-medium text-slate-400">días</span>
               </div>
             </div>

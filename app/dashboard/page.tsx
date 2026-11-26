@@ -89,23 +89,19 @@ const calcHours = (timeStr: string) => {
 // --- CÁLCULO DE VACACIONES (4 días/mes desde fecha de alta) ---
 const calculateAccruedVacations = (hireDateStr: string) => {
   if (!hireDateStr) return 0;
-  const hireDate = new Date(hireDateStr);
-  const today = new Date(); // Simulamos la fecha actual
-  
-  let months = (today.getFullYear() - hireDate.getFullYear()) * 12;
-  months -= hireDate.getMonth();
-  months += today.getMonth();
-  
-  // Si aún no ha cumplido el mes en el día exacto, restamos 1
-  if (today.getDate() < hireDate.getDate()) {
-    months--;
-  }
-  
-  if (months <= 0) return 0;
-  
-  // Limitamos a un año de generación (12 meses * 4 días = 48 días)
-  const accrued = Math.min(12, months) * 4; 
-  return accrued;
+  const hireDate = new Date(hireDateStr + 'T00:00:00');
+  if (isNaN(hireDate.getTime())) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const diffMs = today.getTime() - hireDate.getTime();
+  if (diffMs <= 0) return 0;
+
+  const daysWorked = diffMs / (1000 * 60 * 60 * 24);
+  const accrued = (daysWorked / 365) * 48; // Equivalente proporcional exacto (4 días/mes)
+
+  return Math.min(48, Number(accrued.toFixed(1)));
 };
 
 // --- GENERADOR DE HORAS ---
@@ -898,11 +894,11 @@ export default function Dashboard() {
                         <td className="py-4 font-bold text-slate-800">{staff.name}</td>
                         <td className="py-4 text-center">
                           <input 
-                            type="date" 
-                            value={staff.hireDate || ''} 
-                            onChange={(e) => updateStaffData(staff.firebaseId, 'hireDate', e.target.value)} 
-                            className="text-sm bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none focus:border-[#0052cc] font-mono"
-                          />
+  type="date" 
+  value={staff.hireDate || ''} 
+  onChange={(e) => updateStaffData(staff.firebaseId, 'hireDate', e.target.value)} 
+  className="text-sm bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none focus:border-[#0052cc] font-mono"
+/>
                         </td>
                         <td className="py-4 text-center">
                           <span className="font-black text-[#0052cc] bg-blue-50 px-3 py-1 rounded-full">{generadas} d</span>
